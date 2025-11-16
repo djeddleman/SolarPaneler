@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Panel Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Solar Panel Monitor</h1>
+            <div class="controls">
+                <label for="refreshInterval">
+                    Refresh Interval (minutes):
+                    <input type="number" id="refreshInterval" min="1" value="5" />
+                </label>
+                <button id="refreshNow">Refresh Now</button>
+                <div class="status" id="status">Loading...</div>
+            </div>
+        </header>
+        <div id="canvasContainer">
+            <svg id="panelCanvas" width="100%" height="100%"></svg>
+        </div>
+        <div id="tooltip" class="tooltip hidden"></div>
+    </div>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
