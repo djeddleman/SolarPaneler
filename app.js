@@ -60,18 +60,43 @@ class SolarPanelMonitor {
                 const x = panel.xCoordinate || panel.x || (index % 10) * 120 + 50;
                 const y = (panel.yCoordinate || panel.y || Math.floor(index / 10) * 120 + 50) + yOffset;
                 
+                // Get rotation angle (normalize to 0-360)
+                const rotation = (panel.planeRotation || 0) % 360;
+                
+                // Base dimensions for a panel (portrait: taller than wide)
+                const baseWidth = panel.width || 80;   // Narrow dimension
+                const baseHeight = panel.height || 120; // Tall dimension
+                
+                // Determine actual width/height based on rotation
+                // 0° = portrait (taller than wide), 90° = landscape (wider than tall)
+                let width, height;
+                if (rotation === 0 || rotation === 180) {
+                    // Portrait: taller than wide
+                    width = baseWidth;
+                    height = baseHeight;
+                } else if (rotation === 90 || rotation === 270) {
+                    // Landscape: wider than tall
+                    width = baseHeight;
+                    height = baseWidth;
+                } else {
+                    // For other angles, use the larger dimension for both to ensure visibility
+                    const maxDim = Math.max(baseWidth, baseHeight);
+                    width = maxDim;
+                    height = maxDim;
+                }
+                
                 return {
                     // Keep original data
                     ...panel,
                     // Map to our standard format
                     x: x,
                     y: y,
-                    width: panel.width || 120,  // Rectangular: wider than tall
-                    height: panel.height || 80, // Rectangular: taller than wide
+                    width: width,
+                    height: height,
                     id: panel.inverterSerialNumber || panel.id || panel.ID || `panel-${index}`,
                     serialNumber: panel.inverterSerialNumber || panel.serialNumber || panel.SerialNumber,
                     inverterSerialNumber: panel.inverterSerialNumber,
-                    planeRotation: panel.planeRotation || 0
+                    planeRotation: rotation
                 };
             });
             
@@ -99,8 +124,8 @@ class SolarPanelMonitor {
     createDefaultPanels() {
         // Create some default panels for testing (rectangular, non-overlapping)
         this.panels = [];
-        const panelWidth = 120;
-        const panelHeight = 80;
+        const baseWidth = 80;   // Narrow dimension (for portrait)
+        const baseHeight = 120; // Tall dimension (for portrait)
         const spacingX = 20; // Horizontal spacing between panels
         const spacingY = 20; // Vertical spacing between panels
         const cols = 4;
@@ -108,13 +133,27 @@ class SolarPanelMonitor {
         for (let i = 0; i < 12; i++) {
             const col = i % cols;
             const row = Math.floor(i / cols);
+            // Alternate between 0° (portrait) and 90° (landscape) for variety
+            const rotation = (i % 2 === 0) ? 0 : 90;
+            
+            // Determine dimensions based on rotation
+            let width, height;
+            if (rotation === 0 || rotation === 180) {
+                width = baseWidth;
+                height = baseHeight;
+            } else {
+                width = baseHeight;
+                height = baseWidth;
+            }
+            
             this.panels.push({
                 id: `panel-${i}`,
                 serialNumber: `SN-${i}`,
-                x: 50 + col * (panelWidth + spacingX),
-                y: 50 + row * (panelHeight + spacingY),
-                width: panelWidth,
-                height: panelHeight
+                x: 50 + col * (Math.max(width, baseHeight) + spacingX),
+                y: 50 + row * (Math.max(height, baseHeight) + spacingY),
+                width: width,
+                height: height,
+                planeRotation: rotation
             });
         }
         console.log('Created default panels:', this.panels);
@@ -562,10 +601,25 @@ class SolarPanelMonitor {
         }
         
         // Calculate canvas size based on panel positions
+        // Account for rotation by calculating bounding box
         let maxX = 0, maxY = 0;
         this.panels.forEach(panel => {
-            maxX = Math.max(maxX, panel.x + panel.width);
-            maxY = Math.max(maxY, panel.y + panel.height);
+            // For rotated panels, calculate the bounding box
+            if (panel.planeRotation && panel.planeRotation !== 0 && panel.planeRotation !== 180) {
+                // For 90° and 270° rotations, dimensions are already swapped
+                // For other angles, we use square dimensions
+                const rad = (panel.planeRotation * Math.PI) / 180;
+                const cos = Math.abs(Math.cos(rad));
+                const sin = Math.abs(Math.sin(rad));
+                const rotatedWidth = panel.width * cos + panel.height * sin;
+                const rotatedHeight = panel.width * sin + panel.height * cos;
+                maxX = Math.max(maxX, panel.x + rotatedWidth);
+                maxY = Math.max(maxY, panel.y + rotatedHeight);
+            } else {
+                // For 0° and 180°, no rotation adjustment needed
+                maxX = Math.max(maxX, panel.x + panel.width);
+                maxY = Math.max(maxY, panel.y + panel.height);
+            }
         });
         
         const canvasWidth = Math.max(maxX + 50, window.innerWidth);
@@ -587,9 +641,26 @@ class SolarPanelMonitor {
             const power = this.getPowerValue(powerInfo);
             const color = this.getColorForPower(power);
             
-            console.log(`Panel ${index}: id=${panel.id}, power=${power}, color=${color}, pos=(${panel.x},${panel.y}), size=${panel.width}x${panel.height}`);
+            console.log(`Panel ${index}: id=${panel.id}, power=${power}, color=${color}, pos=(${panel.x},${panel.y}), size=${panel.width}x${panel.height}, rotation=${panel.planeRotation}°`);
             
-            // Create panel rectangle
+            // Create a group for the panel to apply rotation
+            const group = document.createElementNS(svgNS, 'g');
+            
+            // Calculate center point for rotation
+            const centerX = panel.x + panel.width / 2;
+            const centerY = panel.y + panel.height / 2;
+            
+            // Apply rotation transform only for angles that aren't 0/90/180/270
+            // For 0/90/180/270, dimensions are already swapped, so no visual rotation needed
+            if (panel.planeRotation && 
+                panel.planeRotation !== 0 && 
+                panel.planeRotation !== 90 && 
+                panel.planeRotation !== 180 && 
+                panel.planeRotation !== 270) {
+                group.setAttribute('transform', `rotate(${panel.planeRotation} ${centerX} ${centerY})`);
+            }
+            
+            // Create panel rectangle (positioned relative to top-left corner)
             const rect = document.createElementNS(svgNS, 'rect');
             rect.setAttribute('x', panel.x);
             rect.setAttribute('y', panel.y);
@@ -598,15 +669,19 @@ class SolarPanelMonitor {
             rect.setAttribute('fill', color);
             rect.setAttribute('class', 'panel');
             rect.setAttribute('data-panel-id', panel.id || panel.serialNumber);
-            canvas.appendChild(rect);
+            group.appendChild(rect);
             
             // Add power text
             const text = document.createElementNS(svgNS, 'text');
-            text.setAttribute('x', panel.x + panel.width / 2);
-            text.setAttribute('y', panel.y + panel.height / 2);
+            text.setAttribute('x', centerX);
+            text.setAttribute('y', centerY);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'middle');
             text.setAttribute('class', 'panel-text');
             text.textContent = `${power.toFixed(1)}W`;
-            canvas.appendChild(text);
+            group.appendChild(text);
+            
+            canvas.appendChild(group);
         });
         
         console.log('Rendering complete');
