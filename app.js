@@ -473,6 +473,12 @@ class SolarPanelMonitor {
                 y: y - panel.y
             };
             canvas.style.cursor = 'grabbing';
+            
+            // Hide tooltip when dragging starts
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip) {
+                tooltip.classList.add('hidden');
+            }
         }
     }
 
