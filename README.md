@@ -1,5 +1,9 @@
 # SolarPaneler
-Render PV6 Solar Panel 
+Render PV6 Solar Panel in your browser, automatically finding the placement of your panels and
+showing power production and panel details for each.
+
+Detailed post at [Self Hosting PV6 Monitoring (software included!)](https://brett.durrett.net/)
+
 
 ## Setup
 
@@ -14,6 +18,10 @@ Render PV6 Solar Panel
    - `powerDataEndpoint`: Endpoint path for power data
 
 Note: `config.js` is ignored by git, so each installation can have its own configuration.
+
+## Running
+
+Just load index.html into a browser... no server needed!
 
 ## Panel Layout Export/Import
 
@@ -66,3 +74,6 @@ const CONFIG = {
 - Custom panel arrangements
 - Faster loading times
 - Preserving manual position adjustments
+
+
+
