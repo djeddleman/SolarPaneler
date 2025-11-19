@@ -4,7 +4,6 @@ showing power production and panel details for each.
 
 Detailed post at [Self Hosting PV6 Monitoring (software included!)](https://brett.durrett.net/)
 
-
 ## Setup
 
 1. Copy the example configuration file:
