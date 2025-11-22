@@ -330,6 +330,8 @@ class SolarPanelMonitor {
             }
             
             console.log('Power data processed. Max power:', this.maxPower);
+            console.log('Power data stored, keys:', Object.keys(this.powerData));
+            console.log('About to render, powerData reference check:', this.powerData !== null);
             this.updateStatus(`Power data loaded - ${new Date().toLocaleTimeString()}`);
             this.updateSummary();
             this.render();
@@ -386,18 +388,89 @@ class SolarPanelMonitor {
     }
 
     getPowerValue(device) {
+        console.log('getPowerValue called with device:', device);
+        console.log('Device type:', typeof device, 'Is object:', device && typeof device === 'object');
+        
+        if (!device || typeof device !== 'object') {
+            console.log('getPowerValue: Invalid device object, returning 0');
+            return 0;
+        }
+        
         // Try various possible power field names
         // p_3phsum_kw is in kilowatts, so convert to watts by multiplying by 1000
-        if (device.p_3phsum_kw !== undefined && device.p_3phsum_kw !== null) {
-            return parseFloat(device.p_3phsum_kw) * 1000; // Convert kW to W
+        console.log('Checking p_3phsum_kw:', {
+            exists: 'p_3phsum_kw' in device,
+            value: device.p_3phsum_kw,
+            type: typeof device.p_3phsum_kw,
+            isUndefined: device.p_3phsum_kw === undefined,
+            isNull: device.p_3phsum_kw === null,
+            isEmpty: device.p_3phsum_kw === ''
+        });
+        
+        if (device.p_3phsum_kw !== undefined && device.p_3phsum_kw !== null && device.p_3phsum_kw !== '') {
+            const value = parseFloat(device.p_3phsum_kw);
+            console.log('p_3phsum_kw parsed:', {
+                raw: device.p_3phsum_kw,
+                parsed: value,
+                isNaN: isNaN(value),
+                result: !isNaN(value) ? value * 1000 : 'NaN'
+            });
+            if (!isNaN(value)) {
+                const result = value * 1000;
+                console.log('getPowerValue returning (from p_3phsum_kw):', result, 'W');
+                return result; // Convert kW to W
+            }
         }
-        if (device.p_3phsum_kW !== undefined && device.p_3phsum_kW !== null) {
-            return parseFloat(device.p_3phsum_kW) * 1000; // Convert kW to W
+        
+        console.log('Checking p_3phsum_kW:', {
+            exists: 'p_3phsum_kW' in device,
+            value: device.p_3phsum_kW,
+            type: typeof device.p_3phsum_kW
+        });
+        
+        if (device.p_3phsum_kW !== undefined && device.p_3phsum_kW !== null && device.p_3phsum_kW !== '') {
+            const value = parseFloat(device.p_3phsum_kW);
+            console.log('p_3phsum_kW parsed:', {
+                raw: device.p_3phsum_kW,
+                parsed: value,
+                isNaN: isNaN(value),
+                result: !isNaN(value) ? value * 1000 : 'NaN'
+            });
+            if (!isNaN(value)) {
+                const result = value * 1000;
+                console.log('getPowerValue returning (from p_3phsum_kW):', result, 'W');
+                return result; // Convert kW to W
+            }
         }
+        
         // Fallback to other possible field names (already in watts)
-        return parseFloat(device.power || device.Power || device.powerWatts || device.PowerWatts || 
+        console.log('Checking fallback power fields:', {
+            power: device.power,
+            Power: device.Power,
+            powerWatts: device.powerWatts,
+            PowerWatts: device.PowerWatts,
+            currentPower: device.currentPower,
+            CurrentPower: device.CurrentPower,
+            instantPower: device.instantPower,
+            InstantPower: device.InstantPower
+        });
+        
+        const fallbackValue = device.power || device.Power || device.powerWatts || device.PowerWatts || 
                device.currentPower || device.CurrentPower || 
-               device.instantPower || device.InstantPower || 0);
+               device.instantPower || device.InstantPower || 0;
+        
+        console.log('Fallback value selected:', fallbackValue, 'type:', typeof fallbackValue);
+        
+        const fallback = parseFloat(fallbackValue);
+        console.log('Fallback parsed:', {
+            raw: fallbackValue,
+            parsed: fallback,
+            isNaN: isNaN(fallback)
+        });
+        
+        const result = isNaN(fallback) ? 0 : fallback;
+        console.log('getPowerValue returning (from fallback):', result, 'W');
+        return result;
     }
 
     setupEventListeners() {
@@ -854,6 +927,9 @@ class SolarPanelMonitor {
         canvas.innerHTML = '';
         
         console.log(`Rendering ${this.panels.length} panels`);
+        console.log('Power data available:', Object.keys(this.powerData).length, 'devices');
+        console.log('Max power:', this.maxPower);
+        console.log('Power data keys (first 5):', Object.keys(this.powerData).slice(0, 5));
         
         if (this.panels.length === 0) {
             console.warn('No panels to render!');
@@ -901,6 +977,18 @@ class SolarPanelMonitor {
             const powerInfo = this.powerData[panel.id] || 
                              this.powerData[panel.serialNumber] || 
                              this.powerData[panel.inverterSerialNumber] || {};
+            
+            // Debug matching
+            if (index < 3) { // Log first 3 panels for debugging
+                console.log(`Panel ${index} matching:`, {
+                    id: panel.id,
+                    serialNumber: panel.serialNumber,
+                    inverterSerialNumber: panel.inverterSerialNumber,
+                    foundPowerInfo: !!powerInfo && Object.keys(powerInfo).length > 0,
+                    powerDataKeys: Object.keys(this.powerData).slice(0, 5)
+                });
+            }
+            
             const power = this.getPowerValue(powerInfo);
             const color = this.getColorForPower(power);
             
@@ -947,7 +1035,16 @@ class SolarPanelMonitor {
             canvas.appendChild(group);
         });
         
-        console.log('Rendering complete');
+        console.log('Rendering complete, canvas children:', canvas.children.length);
+        
+        // Force a reflow/repaint to ensure SVG updates are applied
+        // This is especially important in Selenium/headless browsers
+        const dummy = canvas.offsetHeight; // Trigger reflow
+        
+        // Use requestAnimationFrame to ensure browser processes DOM changes
+        requestAnimationFrame(() => {
+            console.log('Render animation frame complete, final canvas children:', canvas.children.length);
+        });
     }
 
     startAutoRefresh() {
@@ -1018,4 +1115,5 @@ class SolarPanelMonitor {
 document.addEventListener('DOMContentLoaded', () => {
     new SolarPanelMonitor();
 });
+
 
